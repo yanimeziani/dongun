@@ -1,0 +1,27 @@
+{
+  "name": "dongun-vibe-survivors",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --host 127.0.0.1",
+    "assets:manifest": "node scripts/generate-asset-manifest.mjs",
+    "assets:static": "powershell -ExecutionPolicy Bypass -File scripts/prepare-static-sprites.ps1",
+    "assets:dongun8dir": "powershell -ExecutionPolicy Bypass -File scripts/prepare-dongun-8dir-sheet.ps1",
+    "assets:dynoblob": "powershell -ExecutionPolicy Bypass -File scripts/prepare-dynoblob-sheet.ps1",
+    "assets:spiderswish": "powershell -ExecutionPolicy Bypass -File scripts/prepare-dynoblob-sheet.ps1 -Source assets\\sprites\\spiderswish.png -Output public\\assets\\sprites\\spiderswish.png -FrameWidth 320 -FrameHeight 256 -DetectRowSprites -FrameOffsetX -10",
+    "assets:magic9ball": "powershell -ExecutionPolicy Bypass -File scripts/prepare-dynoblob-sheet.ps1 -Source assets\\sprites\\magic9ball.png -Output public\\assets\\sprites\\magic9ball.png -FrameWidth 320 -FrameHeight 256 -DetectRowSprites",
+    "assets:ballzhead": "powershell -ExecutionPolicy Bypass -File scripts/prepare-dynoblob-sheet.ps1 -Source assets\\sprites\\ballzhead.png -Output public\\assets\\sprites\\ballzhead.png -FrameWidth 320 -FrameHeight 320 -DetectRowSprites",
+    "assets:mobs": "npm run assets:dynoblob && npm run assets:spiderswish && npm run assets:magic9ball && npm run assets:ballzhead"
+  },
+  "dependencies": {
+    "phaser": "^3.88.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

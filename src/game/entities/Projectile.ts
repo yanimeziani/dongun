@@ -8,6 +8,9 @@ export class Projectile extends Phaser.Physics.Arcade.Image {
   bornAt = 0;
   lifespan = 900;
   wave = false;
+  homing = false;
+  homingTurnRate = 0;
+  speed = 0;
   hitRadius = 8;
   previousX = 0;
   previousY = 0;
@@ -34,6 +37,8 @@ export class Projectile extends Phaser.Physics.Arcade.Image {
     color: number;
     lifespan: number;
     wave: boolean;
+    homing?: boolean;
+    homingTurnRate?: number;
   }) {
     this.enableBody(true, config.x, config.y, true, true);
     this.damage = config.damage;
@@ -41,6 +46,9 @@ export class Projectile extends Phaser.Physics.Arcade.Image {
     this.bornAt = this.scene.time.now;
     this.lifespan = config.lifespan;
     this.wave = config.wave;
+    this.homing = config.homing ?? false;
+    this.homingTurnRate = config.homingTurnRate ?? 0;
+    this.speed = config.speed;
     this.wavePhase = Math.random() * Math.PI * 2;
     this.hitRadius = Math.max(5, 8 * config.scale);
     this.previousX = config.x;
@@ -74,6 +82,21 @@ export class Projectile extends Phaser.Physics.Arcade.Image {
 
   markTargetHit(target: object) {
     this.hitTargets.add(target);
+  }
+
+  steerToward(targetX: number, targetY: number, deltaSeconds: number) {
+    if (!this.homing || this.speed <= 0) {
+      return;
+    }
+    const desired = Math.atan2(targetY - this.y, targetX - this.x);
+    const current = Math.atan2(this.baseVelocity.y, this.baseVelocity.x);
+    let diff = Phaser.Math.Angle.Wrap(desired - current);
+    const maxTurn = this.homingTurnRate * deltaSeconds;
+    diff = Phaser.Math.Clamp(diff, -maxTurn, maxTurn);
+    const next = current + diff;
+    this.baseVelocity.setTo(Math.cos(next) * this.speed, Math.sin(next) * this.speed);
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(this.baseVelocity.x, this.baseVelocity.y);
+    this.setRotation(next);
   }
 
   update(time: number, _deltaSeconds: number) {

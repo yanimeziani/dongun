@@ -19,6 +19,7 @@ export type AITickResult = {
   vy: number;
   facingAngle: number;
   fireProjectile?: { angle: number };
+  fireRing?: { count: number };
   aimLine?: { angle: number; length: number };
 };
 
@@ -62,7 +63,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
           ? "spiderswish"
           : kind === "magic9ball" && scene.textures.exists("magic9ball")
             ? "magic9ball"
-            : kind === "brute" && scene.textures.exists("ballzhead")
+            : (kind === "brute" || kind === "boss") && scene.textures.exists("ballzhead")
               ? "ballzhead"
               : undefined;
     super(scene, x, y, spriteKey ?? `enemy-${kind}`, spriteKey ? 5 : undefined);
@@ -75,13 +76,17 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    this.setDepth(ENEMY_DEPTH);
+    this.setDepth(kind === "boss" ? ENEMY_DEPTH + 1 : ENEMY_DEPTH);
     this.setCircle(this.enemyData.radius);
     if (this.spriteKey) {
-      this.setScale(ENEMY_SPRITE_SCALE[this.spriteKey]);
+      const bossScaleBoost = kind === "boss" ? 1.85 : 1;
+      this.setScale(ENEMY_SPRITE_SCALE[this.spriteKey] * bossScaleBoost);
       this.play(`${this.spriteKey}-walk`);
     } else {
       this.setTint(this.enemyData.color);
+      if (kind === "boss") {
+        this.setScale(1.6);
+      }
     }
 
     const radius = this.enemyData.radius;
@@ -138,10 +143,63 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
         return this.tickChargerAI(ctx);
       case "shooter":
         return this.tickKiterAI(ctx);
+      case "boss":
+        return this.tickBossAI(ctx);
       case "normal":
       default:
         return this.tickSwarmerAI(ctx);
     }
+  }
+
+  private tickBossAI(ctx: AITickContext): AITickResult {
+    const speed = this.speedFor(ctx.elapsedSeconds);
+    const toPlayer = this.toPlayerAngle(ctx.player);
+    const distance = this.distanceTo(ctx.player);
+
+    if (this.aiPhase === "telegraph") {
+      if (ctx.time >= this.aiPhaseUntil) {
+        this.aiPhase = "charge";
+        this.aiPhaseUntil = ctx.time + 820;
+      }
+      return { vx: 0, vy: 0, facingAngle: this.aiLockedAngle };
+    }
+
+    if (this.aiPhase === "charge") {
+      if (ctx.time >= this.aiPhaseUntil) {
+        this.aiPhase = "approach";
+        this.aiNextDecisionAt = ctx.time + 2800;
+      } else {
+        const chargeSpeed = speed * 2.7;
+        return {
+          vx: Math.cos(this.aiLockedAngle) * chargeSpeed,
+          vy: Math.sin(this.aiLockedAngle) * chargeSpeed,
+          facingAngle: this.aiLockedAngle,
+        };
+      }
+    }
+
+    // Periodic radial bullet ring keeps the player from hugging the boss.
+    let fireRing: { count: number } | undefined;
+    if (ctx.time - this.lastShotAt > 3000 && distance < 720) {
+      this.lastShotAt = ctx.time;
+      fireRing = { count: 18 };
+    }
+
+    // Occasionally wind up a devastating charge once the player is close-ish.
+    if (ctx.time >= this.aiNextDecisionAt && distance < 460) {
+      this.aiPhase = "telegraph";
+      this.aiLockedAngle = toPlayer;
+      this.aiPhaseUntil = ctx.time + 640;
+      this.aiNextDecisionAt = ctx.time + 4600;
+      return { vx: 0, vy: 0, facingAngle: toPlayer, fireRing };
+    }
+
+    return {
+      vx: Math.cos(toPlayer) * speed,
+      vy: Math.sin(toPlayer) * speed,
+      facingAngle: toPlayer,
+      fireRing,
+    };
   }
 
   private toPlayerAngle(player: { x: number; y: number }) {

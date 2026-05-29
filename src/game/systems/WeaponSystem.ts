@@ -73,20 +73,24 @@ export class WeaponSystem {
     const speed = (weapon.projectileSpeed ?? 420) * player.stats.projectileSpeed;
     const range = weapon.range ?? 720;
     const centerOffset = (projectiles - 1) / 2;
+    const homing = weapon.behavior === "homingProjectile";
 
     for (let i = 0; i < projectiles; i += 1) {
       const offset = (i - centerOffset) * spread;
       const randomJitter = weapon.id === "gatling" ? Phaser.Math.FloatBetween(-0.13, 0.13) : 0;
-      const projectileAngle = angle + offset + randomJitter;
-      const lifespan = (this.rangeInsideViewport(player, projectileAngle, range) / speed) * 1000;
-      this.spawnProjectile(player, projectileAngle, {
+      // Missiles fan out, then curve back onto targets, so launch them wide.
+      const launchAngle = homing ? angle + (i - centerOffset) * 0.5 + randomJitter : angle + offset + randomJitter;
+      const lifespan = homing ? 2400 : (this.rangeInsideViewport(player, launchAngle, range) / speed) * 1000;
+      this.spawnProjectile(player, launchAngle, {
         speed,
         damage: baseDamage,
         piercing: weapon.behavior === "piercingProjectile",
-        scale: player.stats.projectileSize * (weapon.id === "laser" ? 0.8 : 1),
+        scale: player.stats.projectileSize * (weapon.id === "laser" ? 0.8 : homing ? 1.3 : 1),
         color: weapon.color,
         lifespan,
-        wave: player.modifiers.waveShots,
+        wave: !homing && player.modifiers.waveShots,
+        homing,
+        homingTurnRate: homing ? 5.2 : 0,
       });
     }
 
@@ -116,6 +120,8 @@ export class WeaponSystem {
       color: number;
       lifespan: number;
       wave: boolean;
+      homing?: boolean;
+      homingTurnRate?: number;
     },
   ) {
     let projectile = this.projectiles.getFirstDead(false) as Projectile | null;

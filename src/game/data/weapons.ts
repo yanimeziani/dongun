@@ -67,6 +67,17 @@ export const WEAPONS = {
     behavior: "orbitHitbox",
     color: 0x64f5ff,
   },
+  missiles: {
+    id: "missiles",
+    name: "Seeker Missiles",
+    rarity: "rare",
+    cooldownMs: 780,
+    baseDamage: 22,
+    projectileSpeed: 300,
+    range: 900,
+    behavior: "homingProjectile",
+    color: 0xff6fae,
+  },
 } satisfies Record<string, WeaponData>;
 
 export const STARTING_WEAPON_ID = "bulletBlaster" as const;

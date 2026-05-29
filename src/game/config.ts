@@ -3,6 +3,7 @@ import { BootScene } from "./scenes/BootScene";
 import { DeathScene } from "./scenes/DeathScene";
 import { GameScene } from "./scenes/GameScene";
 import { MainMenuScene } from "./scenes/MainMenuScene";
+import { PauseScene } from "./scenes/PauseScene";
 import { ShopScene } from "./scenes/ShopScene";
 import { UpgradeScene } from "./scenes/UpgradeScene";
 
@@ -28,5 +29,5 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       fps: 60,
     },
   },
-  scene: [BootScene, MainMenuScene, ShopScene, GameScene, UpgradeScene, DeathScene],
+  scene: [BootScene, MainMenuScene, ShopScene, GameScene, UpgradeScene, PauseScene, DeathScene],
 };

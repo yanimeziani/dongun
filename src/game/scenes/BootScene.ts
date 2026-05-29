@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { RUNTIME_ASSETS, type RuntimeAssetManifest } from "../data/runtimeAssets";
 import { COLORS } from "../utils/constants";
+import { Settings } from "../utils/settings";
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -41,6 +42,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    this.sound.mute = Settings.isMuted();
     this.createAnimations();
     this.loadRuntimeAssets();
   }
@@ -141,6 +143,7 @@ export class BootScene extends Phaser.Scene {
     this.enemyTexture(graphics, "enemy-magic9ball", 25, COLORS.cyan, 0xb7f8ff);
     this.enemyTexture(graphics, "enemy-brute", 38, COLORS.violet, 0xd9c7ff);
     this.enemyTexture(graphics, "enemy-shooter", 23, COLORS.cyan, 0xb7f8ff);
+    this.enemyTexture(graphics, "enemy-boss", 60, COLORS.red, 0xffd0ad);
 
     if (!this.textures.exists("projectile")) {
       graphics.clear();

@@ -2,8 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dongun - Vibe Survivors</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#05060a" />
+    <title>Dongun — Vibe Survivors</title>
+    <meta
+      name="description"
+      content="Dongun: Vibe Survivors — a fast browser bullet-heaven roguelite. Survive endless waves, stack absurd weapon builds, and become an unstoppable menace. Built with Phaser 3 + TypeScript."
+    />
+
+    <!-- Open Graph / social cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Dongun — Vibe Survivors" />
+    <meta
+      property="og:description"
+      content="A fast browser bullet-heaven roguelite. Kill mobs, find loot, stack ridiculous builds, survive."
+    />
+    <meta property="og:image" content="https://yanimeziani.github.io/dongun/social-card.jpg" />
+    <meta property="og:url" content="https://yanimeziani.github.io/dongun/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Dongun — Vibe Survivors" />
+    <meta
+      name="twitter:description"
+      content="A fast browser bullet-heaven roguelite built with Phaser 3 + TypeScript."
+    />
+    <meta name="twitter:image" content="https://yanimeziani.github.io/dongun/social-card.jpg" />
+
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,7 +39,12 @@
     />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="loading">
+        <div class="loading-title">DONGUN</div>
+        <div class="loading-sub">summoning the dungeon…</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

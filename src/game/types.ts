@@ -1,10 +1,18 @@
-export type WeaponId = "bulletBlaster" | "gatling" | "laser" | "shotgun" | "slice" | "whirlwind";
-export type EnemyKind = "normal" | "fast" | "magic9ball" | "brute" | "shooter";
+export type WeaponId =
+  | "bulletBlaster"
+  | "gatling"
+  | "laser"
+  | "shotgun"
+  | "slice"
+  | "whirlwind"
+  | "missiles";
+export type EnemyKind = "normal" | "fast" | "magic9ball" | "brute" | "shooter" | "boss";
 export type Rarity = "common" | "rare" | "legendary";
 export type WeaponBehavior =
   | "singleProjectile"
   | "piercingProjectile"
   | "spreadProjectile"
+  | "homingProjectile"
   | "slice"
   | "orbitHitbox";
 

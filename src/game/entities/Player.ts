@@ -37,6 +37,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   weaponLevels: Record<string, number> = { [STARTING_WEAPON_ID]: 1 };
   modifiers: RunModifiers;
   lastAimAngle = 0;
+  externalMoveX = 0;
+  externalMoveY = 0;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd: Record<string, Phaser.Input.Keyboard.Key>;
   private readonly animated: boolean;
@@ -128,14 +130,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     };
   }
 
+  setExternalMove(x: number, y: number) {
+    this.externalMoveX = x;
+    this.externalMoveY = y;
+  }
+
   updateMovement(deltaSeconds: number) {
     const body = this.body as Phaser.Physics.Arcade.Body;
-    const x =
+    const keyX =
       Number(this.cursors.right?.isDown || this.wasd.D.isDown) -
       Number(this.cursors.left?.isDown || this.wasd.A.isDown);
-    const y =
+    const keyY =
       Number(this.cursors.down?.isDown || this.wasd.S.isDown) -
       Number(this.cursors.up?.isDown || this.wasd.W.isDown);
+
+    // Touch joystick takes over when it is being held; otherwise use the keyboard.
+    const usingJoystick = this.externalMoveX !== 0 || this.externalMoveY !== 0;
+    const x = usingJoystick ? this.externalMoveX : keyX;
+    const y = usingJoystick ? this.externalMoveY : keyY;
 
     let vx = x;
     let vy = y;

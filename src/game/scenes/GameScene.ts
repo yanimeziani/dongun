@@ -13,16 +13,21 @@ import { LootSystem } from "../systems/LootSystem";
 import { ProgressionSystem } from "../systems/ProgressionSystem";
 import { ProceduralArenaSystem } from "../systems/ProceduralArenaSystem";
 import { SaveSystem } from "../systems/SaveSystem";
+import { TouchControls } from "../systems/TouchControls";
 import { UpgradeSystem } from "../systems/UpgradeSystem";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import type { EnemyKind, UpgradeOption, WeaponId } from "../types";
-import { COLORS, UI_DEPTH } from "../utils/constants";
+import { COLORS, UI_DEPTH, UI_THEME } from "../utils/constants";
 import { getMusicAnalyser, playMusic } from "../utils/music";
+import { getVisibleGameArea } from "../utils/safeArea";
 import { BloodVignette } from "../ui/BloodVignette";
 import { Hud } from "../ui/Hud";
 import { hitboxesOverlap, sweepCircleHitTime, type CircleHitbox, type SweepHitbox } from "../systems/HitboxSystem";
 
 const CAMERA_HEIGHT_MULTIPLIER = 1.25;
+const BOSS_FIRST_SECONDS = 120;
+const BOSS_INTERVAL_SECONDS = 150;
+const TOUCH_AIM_RANGE = 1200;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -40,6 +45,9 @@ export class GameScene extends Phaser.Scene {
   private challenge!: ChallengeSystem;
   private hud!: Hud;
   private bloodVignette!: BloodVignette;
+  private touchControls?: TouchControls;
+  private boss?: Enemy;
+  private nextBossAt = BOSS_FIRST_SECONDS;
   private runStartedAt = 0;
   private lastUpdateAt = 0;
   private elapsedSeconds = 0;
@@ -61,6 +69,8 @@ export class GameScene extends Phaser.Scene {
     this.lastUpdateAt = -1;
     this.elapsedSeconds = 0;
     this.deathHandled = false;
+    this.boss = undefined;
+    this.nextBossAt = BOSS_FIRST_SECONDS;
 
     this.cameras.main.setBackgroundColor("#65755a");
     this.arena = new ProceduralArenaSystem(this);
@@ -85,14 +95,40 @@ export class GameScene extends Phaser.Scene {
     });
     this.hud = new Hud(this);
     this.bloodVignette = new BloodVignette(this);
+    this.touchControls = new TouchControls(this);
     this.aimGraphics = this.add.graphics().setDepth(-50);
+    this.createPauseButton();
 
     this.events.on("upgrade-picked", this.applyUpgrade, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.arena.destroy());
-    this.input.keyboard?.on("keydown-ESC", this.togglePauseOverlay, this);
+    this.input.keyboard?.on("keydown-ESC", this.pauseGame, this);
+    this.input.keyboard?.on("keydown-P", this.pauseGame, this);
     this.input.keyboard?.on("keydown-H", this.toggleHitboxDebug, this);
 
     playMusic(this, "music-game", 0.4);
+  }
+
+  private createPauseButton() {
+    const safe = getVisibleGameArea(this);
+    const x = safe.right - 38;
+    const y = safe.top + 38;
+    const button = this.add
+      .rectangle(x, y, 44, 44, UI_THEME.panelNum, 0.72)
+      .setScrollFactor(0)
+      .setStrokeStyle(1, UI_THEME.panelBorderNum, 1)
+      .setDepth(UI_DEPTH + 5)
+      .setInteractive({ useHandCursor: true });
+    this.add
+      .text(x, y, "II", {
+        fontFamily: UI_THEME.bodyFont,
+        fontSize: "18px",
+        color: UI_THEME.accentHex,
+        fontStyle: "700",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(UI_DEPTH + 6);
+    button.on("pointerdown", () => this.pauseGame());
   }
 
   update(time: number, delta: number) {
@@ -111,8 +147,9 @@ export class GameScene extends Phaser.Scene {
     this.lastUpdateAt = time;
     this.elapsedSeconds = (time - this.runStartedAt) / 1000;
 
+    this.applyMovementInput();
     this.player.updateMovement(deltaSeconds);
-    this.updatePointerAim();
+    this.updateAim();
     this.player.syncFx();
     this.arena.update(this.player.x, this.player.y);
     this.syncArenaWithMusic(deltaSeconds);
@@ -128,6 +165,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.spawner.update(time, this.elapsedSeconds, this.player);
+    this.updateBoss(this.elapsedSeconds);
     this.weapons.update(time, deltaSeconds, this.player);
     this.cleanupDeadEnemies();
     this.challenge.update(deltaSeconds, this.elapsedSeconds, this.player);
@@ -151,6 +189,7 @@ export class GameScene extends Phaser.Scene {
 
     const aimRequests: Array<{ x: number; y: number; angle: number; length: number }> = [];
     const fireRequests: Array<{ enemy: Enemy; angle: number }> = [];
+    const ringRequests: Array<{ enemy: Enemy; count: number }> = [];
 
     const enemyList = this.enemies.getChildren() as Enemy[];
     for (const enemy of enemyList) {
@@ -168,6 +207,9 @@ export class GameScene extends Phaser.Scene {
       }
       if (result.fireProjectile) {
         fireRequests.push({ enemy, angle: result.fireProjectile.angle });
+      }
+      if (result.fireRing) {
+        ringRequests.push({ enemy, count: result.fireRing.count });
       }
     }
 
@@ -191,6 +233,12 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    for (const ring of ringRequests) {
+      if (ring.enemy.active) {
+        this.fireEnemyRing(ring.enemy, ring.count);
+      }
+    }
+
     this.renderAimLines(aimRequests);
   }
 
@@ -210,7 +258,28 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private updatePointerAim() {
+  private applyMovementInput() {
+    if (this.touchControls?.enabled) {
+      const move = this.touchControls.getMoveVector();
+      this.player.setExternalMove(move.x, move.y);
+    }
+  }
+
+  private updateAim() {
+    // On touch devices there is no hover cursor, so lock onto the nearest enemy.
+    if (this.touchControls?.enabled) {
+      const target = this.findNearestEnemy(this.player.x, this.player.y, TOUCH_AIM_RANGE);
+      if (target) {
+        this.player.aimAt(target.x, target.y);
+        return;
+      }
+      const move = this.touchControls.getMoveVector();
+      if (move.x !== 0 || move.y !== 0) {
+        this.player.aimAt(this.player.x + move.x * 120, this.player.y + move.y * 120);
+      }
+      return;
+    }
+
     const pointer = this.input.activePointer;
     const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     this.player.aimAt(worldPoint.x, worldPoint.y);
@@ -242,6 +311,12 @@ export class GameScene extends Phaser.Scene {
       const projectile = child as Projectile;
       if (projectile.active) {
         projectile.update(time, deltaSeconds);
+        if (projectile.homing) {
+          const target = this.findNearestEnemy(projectile.x, projectile.y, 520);
+          if (target) {
+            projectile.steerToward(target.x, target.y, deltaSeconds);
+          }
+        }
       }
     }
 
@@ -441,7 +516,24 @@ export class GameScene extends Phaser.Scene {
       this.chainExplosion(enemy.x, enemy.y);
     }
 
+    if (enemy.kind === "boss") {
+      this.onBossDefeated(enemy);
+    }
+
     enemy.destroy();
+  }
+
+  private onBossDefeated(boss: Enemy) {
+    this.boss = undefined;
+    this.hud.hideBoss();
+    this.player.runGold += Math.round(120 * this.player.stats.goldGain);
+    this.player.heal(40);
+    this.cameras.main.flash(260, 255, 210, 130);
+    this.cameras.main.shake(360, 0.014);
+    this.flashText("BOSS DOWN — big loot!", "#ffd15c");
+    // Guaranteed reward chest opens an upgrade choice.
+    this.lootSystem.spawn(boss.x, boss.y, "chest", 1);
+    this.lootSystem.spawn(boss.x + 36, boss.y, "chest", 1);
   }
 
   private chainExplosion(x: number, y: number) {
@@ -535,14 +627,20 @@ export class GameScene extends Phaser.Scene {
 
   private finishRun(elapsedSeconds: number) {
     this.deathHandled = true;
+    this.hud.hideBoss();
+    const priorBest = SaveSystem.load().bestSurvivalTime;
     const results = {
       survivalSeconds: elapsedSeconds,
       kills: this.player.kills,
       goldEarned: this.player.runGold,
       level: this.player.level,
     };
-    SaveSystem.recordRun(results);
-    this.scene.start("DeathScene", results);
+    const save = SaveSystem.recordRun(results);
+    this.scene.start("DeathScene", {
+      ...results,
+      isNewBest: elapsedSeconds > priorBest && elapsedSeconds > 0,
+      bestSurvivalTime: save.bestSurvivalTime,
+    });
   }
 
   private toggleHitboxDebug() {
@@ -635,11 +733,68 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private togglePauseOverlay() {
-    if (this.scene.isPaused("GameScene")) {
+  private pauseGame() {
+    if (this.scene.isPaused("GameScene") || this.deathHandled) {
       return;
     }
-    this.openUpgradeScreen();
+    this.scene.pause();
+    this.scene.launch("PauseScene");
+  }
+
+  private findNearestEnemy(x: number, y: number, maxDistance: number): Enemy | null {
+    let nearest: Enemy | null = null;
+    let bestDistSq = maxDistance * maxDistance;
+    for (const child of this.enemies.getChildren()) {
+      const enemy = child as Enemy;
+      if (!enemy.active) {
+        continue;
+      }
+      const dx = enemy.x - x;
+      const dy = enemy.y - y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        nearest = enemy;
+      }
+    }
+    return nearest;
+  }
+
+  private updateBoss(elapsedSeconds: number) {
+    if (this.boss && !this.boss.active) {
+      this.boss = undefined;
+    }
+
+    if (!this.boss && elapsedSeconds >= this.nextBossAt) {
+      this.spawnBoss(elapsedSeconds);
+      this.nextBossAt = elapsedSeconds + BOSS_INTERVAL_SECONDS;
+    }
+
+    if (this.boss) {
+      this.hud.updateBoss(this.boss.hp / this.boss.maxHp);
+    }
+  }
+
+  private spawnBoss(elapsedSeconds: number) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 720;
+    const x = this.player.x + Math.cos(angle) * distance;
+    const y = this.player.y + Math.sin(angle) * distance;
+    // Bosses scale up with each milestone reached.
+    const tier = Math.max(1, Math.round((elapsedSeconds - BOSS_FIRST_SECONDS) / BOSS_INTERVAL_SECONDS) + 1);
+    const difficulty = 1 + (elapsedSeconds / 130) + tier * 0.6;
+    const boss = new Enemy(this, x, y, "boss", difficulty);
+    this.enemies.add(boss);
+    this.boss = boss;
+    this.hud.showBoss(boss.enemyData.name);
+    this.cameras.main.shake(420, 0.012);
+    this.flashText("A BOSS APPROACHES", "#ff6b81");
+  }
+
+  private fireEnemyRing(enemy: Enemy, count: number) {
+    for (let i = 0; i < count; i += 1) {
+      this.fireEnemyProjectile(enemy, (i / count) * Math.PI * 2);
+    }
   }
 }
 

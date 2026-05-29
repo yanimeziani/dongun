@@ -72,4 +72,17 @@ export const ENEMY_TYPES = {
     color: 0x4de6ff,
     unlockSeconds: 155,
   },
+  boss: {
+    name: "Dread Ballzhead",
+    hp: 900,
+    speed: 58,
+    damage: 30,
+    xpDrop: 30,
+    goldChance: 1,
+    goldValue: 18,
+    radius: 74,
+    color: 0xff4d6d,
+    // Never selected by the random spawner — summoned manually at milestones.
+    unlockSeconds: Number.POSITIVE_INFINITY,
+  },
 } as const;
